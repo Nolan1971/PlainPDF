@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{EFC56C0C-407E-4F90-B3AF-ABE39B530532}</ProjectGuid>
+    <RootNamespace>PlainPDF</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Release'">false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <Architecture Condition="'$(Platform)' == 'Win32'">x86</Architecture>
+    <Architecture Condition="'$(Platform)' == 'x64'">x64</Architecture>
+    <Architecture Condition="'$(Platform)' == 'ARM64'">arm64</Architecture>
+    <OutDir>$(MSBuildProjectDirectory)\out\build\$(Architecture)\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\out\obj\$(Architecture)\$(Configuration)\</IntDir>
+    <PdfiumDir>$(MSBuildProjectDirectory)\out\pdfium\$(Architecture)\</PdfiumDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;_WIN32_WINNT=0x0A00;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(PdfiumDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <RuntimeLibrary Condition="'$(Configuration)' == 'Debug'">MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary Condition="'$(Configuration)' == 'Release'">MultiThreaded</RuntimeLibrary>
+      <Optimization Condition="'$(Configuration)' == 'Release'">MaxSpeed</Optimization>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <DelayLoadDLLs>pdfium.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalLibraryDirectories>$(PdfiumDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>pdfium.dll.lib;delayimp.lib;comctl32.lib;comdlg32.lib;ole32.lib;uuid.lib;shell32.lib;gdi32.lib;user32.lib;advapi32.lib;msimg32.lib;winspool.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <Manifest>
+      <AdditionalManifestFiles>src\PlainPDF.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\Canvas.cpp" />
+    <ClCompile Include="src\Files.cpp" />
+    <ClCompile Include="src\Print.cpp" />
+    <ClCompile Include="src\Reader.cpp" />
+    <ClCompile Include="src\Sidebar.cpp" />
+    <ClCompile Include="src\Pdf.cpp" />
+    <ClCompile Include="src\Worker.cpp" />
+    <ClCompile Include="src\View.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\Pdf.h" />
+    <ClInclude Include="src\App.h" />
+    <ClInclude Include="src\Files.h" />
+    <ClInclude Include="src\Print.h" />
+    <ClInclude Include="src\Sidebar.h" />
+    <ClInclude Include="src\Worker.h" />
+    <ClInclude Include="src\View.h" />
+    <ClInclude Include="src\Resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="src\PlainPDF.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="RequirePdfium" BeforeTargets="ClCompile" Condition="!Exists('$(PdfiumDir)bin\pdfium.dll')">
+    <Error Text="Missing $(Architecture) PDFium. Run tools\Get-Pdfium.ps1 before building." />
+  </Target>
+  <Target Name="CopyPdfium" AfterTargets="Build">
+    <Copy SourceFiles="$(PdfiumDir)bin\pdfium.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

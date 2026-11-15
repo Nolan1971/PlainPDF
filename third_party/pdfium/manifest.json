@@ -1,0 +1,37 @@
+{
+  "publisher": "bblanchon/pdfium-binaries",
+  "version": "159.0.8152.0",
+  "tag": "chromium/8152",
+  "releaseId": 440302854,
+  "packagingCommit": "0dc8e9598ab4496f8620043ec2c3f2eabf4eea33",
+  "upstreamCommit": "6688c576fd851f4159c6fae39396da50939de110",
+  "attestation": {
+    "id": 731274051,
+    "sha256": "344b891adea1d606667f6700711d36245d0b018d7a789998dbd30a5b7a7bd234"
+  },
+  "releaseUrl": "https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium/8152",
+  "downloadBase": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8152",
+  "artifacts": {
+    "x86": {
+      "name": "pdfium-win-x86.tgz",
+      "id": 731274048,
+      "size": 3873466,
+      "machine": 332,
+      "sha256": "e0a0dba6df5139f009664ff942bb9a5912c07218c7be0298fb03380b3c495cc4"
+    },
+    "x64": {
+      "name": "pdfium-win-x64.tgz",
+      "id": 731274045,
+      "size": 4037307,
+      "machine": 34404,
+      "sha256": "cee2b0e9990bc67c0721774932961b9dbf2766046c10eec925acd4cfba6fdfe3"
+    },
+    "arm64": {
+      "name": "pdfium-win-arm64.tgz",
+      "id": 731274036,
+      "size": 3732675,
+      "machine": 43620,
+      "sha256": "8614b10c6a780acc3ae9fdd425d6b61f9d22ae84301b19e1ac82f573930c217c"
+    }
+  }
+}
