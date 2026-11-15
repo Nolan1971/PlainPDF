@@ -2,6 +2,13 @@
 
 ## Release Candidate 2 icon update
 
+RC2 was published on November 15, 2026 as GitHub pre-release `v1.0.0-rc.2`.
+The tag points to `5c22755595bd9885e7c3e5dc6a5009ec6d8c3c0e`, the source
+used to build the packages. The release contains a portable ZIP and an
+unsigned setup EXE for each architecture, plus `SHA256SUMS.txt`.
+[RC2 release and notes](https://github.com/Nolan1971/PlainPDF/releases/tag/v1.0.0-rc.2) ·
+[Published checksums](https://github.com/Nolan1971/PlainPDF/releases/download/v1.0.0-rc.2/SHA256SUMS.txt)
+
 RC2 adds a nine-size icon to the app, installer and uninstaller. The Start
 menu shortcut points to the installed app icon. All six configurations
 rebuilt with zero warnings and zero errors. The package audit matched the
@@ -9,11 +16,14 @@ embedded 16, 32 and 256 px icons in all three app and setup executables.
 The x86 and x64 portable readers rendered the fixture and used the new
 large and small window icons. The x86 installer also verified the installed
 reader, Start menu shortcut, uninstaller icon and uninstall. The existing
-x64 installation stayed in place. Native ARM64 installation and runtime
-remain Not Tested.
+x64 RC1 installation was present, so the RC2 x64 install test was skipped.
+Native ARM64 installation and runtime remain Not Tested.
 
 The RC2 packages are in `D:\Projects\PlainPDF-Artifacts\1.0.0-rc.2` with
-`SHA256SUMS.txt`. The local audit is `out/test/1.0.0-rc.2/packages.json`.
+`SHA256SUMS.txt`. All seven public downloads were fetched without
+authentication and matched the SHA-256 of their local files. The local
+package audit and public download results are `packages.json` and
+`published.json` in `out/test/1.0.0-rc.2`.
 
 ## Release Candidate 1 baseline
 
@@ -127,13 +137,17 @@ targets for this fixture and workstation.
 
 ## Reproduce
 
-From a clean checkout, run the following in PowerShell.
+To build and package the RC2 source in a fresh checkout, run the following
+in PowerShell. The README lists the Visual Studio and packaging prerequisites.
 
 ```powershell
+git clone --branch v1.0.0-rc.2 https://github.com/Nolan1971/PlainPDF.git PlainPDF-rc2-review
+Set-Location -LiteralPath .\PlainPDF-rc2-review
 .\tools\Get-Pdfium.ps1
 .\tools\Build.ps1 -Rebuild
 .\tools\Get-NSIS.ps1
-.\tools\Pack.ps1
+$plainPdfReviewPackages = Join-Path (Get-Location).Path 'out\review-packages'
+.\tools\Pack.ps1 -Version 1.0.0-rc.2 -Output $plainPdfReviewPackages
 ```
 
 For a quick owner review, extract the x64 portable ZIP into a new directory
@@ -166,7 +180,7 @@ local 7-Zip and MSVC dumpbin executables.
 ```powershell
 $plainPdfSevenZip = 'D:\7-Zip\7z.exe'
 $plainPdfDumpbin = 'D:\Visual Studio\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\dumpbin.exe'
-python .\tests\packages.py ..\PlainPDF-Artifacts\1.0.0-rc.2 --sevenzip $plainPdfSevenZip --dumpbin $plainPdfDumpbin --report .\out\test\review-packages.json
+python .\tests\packages.py .\out\review-packages --sevenzip $plainPdfSevenZip --dumpbin $plainPdfDumpbin --report .\out\test\review-packages.json
 ```
 
 Use `--skip-install x64` or `--skip-install x86` to keep an existing

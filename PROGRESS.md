@@ -2,6 +2,10 @@
 
 ## Release candidate
 
+- Published `v1.0.0-rc.2` as a GitHub pre-release on November 15, 2026.
+  The tag points to `5c22755595bd9885e7c3e5dc6a5009ec6d8c3c0e`.
+  All six packages and the checksum file were downloaded from GitHub and
+  matched their local SHA-256 values. [RC2 download and release notes](https://github.com/Nolan1971/PlainPDF/releases/tag/v1.0.0-rc.2)
 - RC2 adds a shared app and installer icon. All six configurations rebuilt.
   Portable x86 and x64 showed the new window icon and rendered the fixture.
   The x86 install and uninstall test verified its shortcut and uninstaller
@@ -31,6 +35,5 @@
 - The packages are unsigned. Virtual print evidence covers Microsoft Print
   to PDF on the reference workstation. The acceptance record lists the
   additional environment checks that remain unverified.
-- The owner can independently review the candidate using an extracted
-  x64 ZIP or the matching setup. Stable release publication follows owner
-  acceptance.
+- The owner reviewed RC2. Stable 1.0 publication requires a separate owner
+  decision.

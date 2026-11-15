@@ -12,6 +12,9 @@ An image-only scan has no selectable text.
 
 ## Install or run
 
+Installers, portable ZIPs and checksums are available on the project's
+[GitHub Releases page](https://github.com/Nolan1971/PlainPDF/releases).
+
 Use the package built for your architecture. The installer defaults to the
 current user, adds a Start Menu shortcut, and registers an uninstaller in
 Windows Apps & features. Its optional Open with entry leaves the existing
