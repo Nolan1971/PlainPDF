@@ -12,8 +12,8 @@ An image-only scan has no selectable text.
 
 ## Install or run
 
-Installers, portable ZIPs and checksums are available on the project's
-[GitHub Releases page](https://github.com/Nolan1971/PlainPDF/releases).
+The stable 1.0.0 release includes installers, portable ZIPs and SHA-256
+checksums. [Download PlainPDF 1.0.0](https://github.com/Nolan1971/PlainPDF/releases/tag/v1.0.0)
 
 Use the package built for your architecture. The installer defaults to the
 current user, adds a Start Menu shortcut, and registers an uninstaller in
@@ -21,10 +21,10 @@ Windows Apps & features. Its optional Open with entry leaves the existing
 default PDF reader in place. For portable use, extract the complete ZIP into
 its own directory and run `PlainPDF.exe`. Keep `pdfium.dll` alongside it.
 
-The x86 and x64 packages were tested on x64 Windows 10. ARM64 support is
-experimental pending native ARM64 verification. The ARM64 ZIP and installer
-contain the native ARM64 application and PDFium. NSIS uses an x86 installer
-stub.
+The installers are unsigned. The x86 and x64 packages were exercised on x64
+Windows 10. Native ARM64 installation and runtime are experimental and
+untested. The ARM64 ZIP and installer contain the native ARM64 application
+and PDFium. NSIS uses an x86 installer stub.
 
 ## Use
 
@@ -52,10 +52,10 @@ Release. The build script puts executables under
 `out/build/<architecture>/<configuration>` and logs under `out/logs`.
 
 Use a local copy of NSIS or acquire the pinned packaging compiler with
-`tools/Get-NSIS.ps1` and a local 7-Zip installation. Run `tools/Pack.ps1` to
-package the Release builds. The destination defaults to
-`../PlainPDF-Artifacts/1.0.0-rc.2`. Pass `-Version` to set the version in the
-package filenames and default output path, or `-Output` to choose a directory.
+`tools/Get-NSIS.ps1` and a local 7-Zip installation. Run
+`.\tools\Pack.ps1 -Version 1.0.0` to package the Release builds as 1.0.0.
+The packages and checksums go to `../PlainPDF-Artifacts/1.0.0` by default.
+Use `-Output` to choose a different directory.
 
 The application and setup share `src/PlainPDF.ico`. To regenerate it after
 editing the drawing, run `python .\tools\Make-Icon.py` with Pillow installed.

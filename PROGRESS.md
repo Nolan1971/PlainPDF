@@ -1,6 +1,16 @@
 # PlainPDF 1.0 development
 
-## Release candidate
+## Stable 1.0.0
+
+- Published `v1.0.0` on November 15, 2026. The tag points to the same source
+  commit as RC2, `5c22755595bd9885e7c3e5dc6a5009ec6d8c3c0e`. The six RC2
+  packages were copied under stable filenames and given a fresh checksum
+  manifest. All seven public downloads matched the local files.
+  [PlainPDF 1.0.0 release](https://github.com/Nolan1971/PlainPDF/releases/tag/v1.0.0)
+- The stable release packages are in `D:\Projects\PlainPDF-Artifacts\1.0.0`.
+  [Acceptance results and build instructions](docs/ACCEPTANCE.md)
+
+## Release candidates
 
 - Published `v1.0.0-rc.2` as a GitHub pre-release on November 15, 2026.
   The tag points to `5c22755595bd9885e7c3e5dc6a5009ec6d8c3c0e`.
@@ -35,5 +45,3 @@
 - The packages are unsigned. Virtual print evidence covers Microsoft Print
   to PDF on the reference workstation. The acceptance record lists the
   additional environment checks that remain unverified.
-- The owner reviewed RC2. Stable 1.0 publication requires a separate owner
-  decision.

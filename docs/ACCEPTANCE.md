@@ -1,5 +1,23 @@
 # PlainPDF 1.0 verification
 
+## Stable 1.0.0
+
+The stable release was published on November 15, 2026. The `v1.0.0` and
+`v1.0.0-rc.2` tags point to the same commit,
+`5c22755595bd9885e7c3e5dc6a5009ec6d8c3c0e`. Each stable ZIP and setup EXE
+matches its RC2 counterpart by SHA-256. The release checksum manifest was
+generated for the stable filenames. All seven public downloads matched
+the local files in `D:\Projects\PlainPDF-Artifacts\1.0.0`.
+[PlainPDF 1.0.0 release](https://github.com/Nolan1971/PlainPDF/releases/tag/v1.0.0) ·
+[SHA-256 checksums](https://github.com/Nolan1971/PlainPDF/releases/download/v1.0.0/SHA256SUMS.txt)
+
+The installed x64 executable and PDFium DLL on the reference workstation
+matched RC2. Its Start menu target, icon and uninstaller file were checked.
+The full x64 install and uninstall test was run on RC1. The full x86 test
+was repeated on RC2. The installers are unsigned. Native ARM64 installation
+and runtime remain **Not Tested — no ARM64 test system**. The public download
+verification is in `out/test/1.0.0/published.json`.
+
 ## Release Candidate 2 icon update
 
 RC2 was published on November 15, 2026 as GitHub pre-release `v1.0.0-rc.2`.
@@ -137,17 +155,17 @@ targets for this fixture and workstation.
 
 ## Reproduce
 
-To build and package the RC2 source in a fresh checkout, run the following
+To build and package the 1.0.0 source in a fresh checkout, run the following
 in PowerShell. The README lists the Visual Studio and packaging prerequisites.
 
 ```powershell
-git clone --branch v1.0.0-rc.2 https://github.com/Nolan1971/PlainPDF.git PlainPDF-rc2-review
-Set-Location -LiteralPath .\PlainPDF-rc2-review
+git clone --branch v1.0.0 https://github.com/Nolan1971/PlainPDF.git PlainPDF-1.0.0-review
+Set-Location -LiteralPath .\PlainPDF-1.0.0-review
 .\tools\Get-Pdfium.ps1
 .\tools\Build.ps1 -Rebuild
 .\tools\Get-NSIS.ps1
 $plainPdfReviewPackages = Join-Path (Get-Location).Path 'out\review-packages'
-.\tools\Pack.ps1 -Version 1.0.0-rc.2 -Output $plainPdfReviewPackages
+.\tools\Pack.ps1 -Version 1.0.0 -Output $plainPdfReviewPackages
 ```
 
 For a quick owner review, extract the x64 portable ZIP into a new directory
@@ -180,7 +198,7 @@ local 7-Zip and MSVC dumpbin executables.
 ```powershell
 $plainPdfSevenZip = 'D:\7-Zip\7z.exe'
 $plainPdfDumpbin = 'D:\Visual Studio\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\dumpbin.exe'
-python .\tests\packages.py .\out\review-packages --sevenzip $plainPdfSevenZip --dumpbin $plainPdfDumpbin --report .\out\test\review-packages.json
+python .\tests\packages.py .\out\review-packages --version 1.0.0 --sevenzip $plainPdfSevenZip --dumpbin $plainPdfDumpbin --report .\out\test\review-packages.json
 ```
 
 Use `--skip-install x64` or `--skip-install x86` to keep an existing
