@@ -2,8 +2,14 @@
 
 ## Release candidate
 
+- RC2 adds a shared app and installer icon. All six configurations rebuilt.
+  Portable x86 and x64 showed the new window icon and rendered the fixture.
+  The x86 install and uninstall test verified its shortcut and uninstaller
+  icons. The package audit verified the embedded app and setup icons for all
+  three architectures. RC2 packages and checksums are in
+  `D:\Projects\PlainPDF-Artifacts\1.0.0-rc.2`.
 - The public repository is `Nolan1971/PlainPDF` on `main`. The application
-  binaries were built from `aca55764a44f876704fd866aa9cc6d0e480a7aa3` in a
+  binaries for RC1 were built from `aca55764a44f876704fd866aa9cc6d0e480a7aa3` in a
   clean checkout. The original specification and coding standard remain
   authoritative. First-party code uses the owner's MIT attribution.
 - Debug and Release built for x86, x64, and ARM64 with zero warnings and
@@ -13,7 +19,7 @@
   input, document replacement and shutdown during PDF work, bounded stress,
   virtual printing and cancellation, and per-user install and uninstall.
   The temporary Microsoft Print to PDF queue was removed after verification.
-- All three portable ZIPs and installers are in
+- The RC1 portable ZIPs and installers are in
   `D:\Projects\PlainPDF-Artifacts\1.0.0-rc` with `SHA256SUMS.txt`.
   [Acceptance results and review instructions](docs/ACCEPTANCE.md)
 

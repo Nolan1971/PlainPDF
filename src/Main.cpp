@@ -631,7 +631,8 @@ namespace
 		wc.lpfnWndProc = WndProc;
 		wc.hInstance = instance;
 		wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-		wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+		// Windows selects the title-bar size from the same icon group.
+		wc.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(IDI_PLAINPDF));
 		wc.hbrBackground = GetSysColorBrush(COLOR_BTNFACE);
 		wc.lpszMenuName = MAKEINTRESOURCEW(ID_MAIN_MENU);
 		wc.lpszClassName = szMainClass;

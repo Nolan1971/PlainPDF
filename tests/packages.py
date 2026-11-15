@@ -14,6 +14,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from acceptance import RED, preserve_recent, wait_marker
+from icon_checks import check_file_icon, check_window_icon
 from windows_ui import Reader, wait_for
 
 ARCHITECTURES = {"x86": 0x014C, "x64": 0x8664, "arm64": 0xAA64}
@@ -55,8 +56,8 @@ def run_installer(exe):
     subprocess.run([exe, "/S"], check=True, timeout=25, creationflags=subprocess.CREATE_NO_WINDOW)
 
 
-def static_checks(directory, architecture, work, sevenzip, dumpbin, checked_hashes):
-    base = f"PlainPDF-1.0.0-rc-{architecture}"
+def static_checks(directory, version, architecture, work, sevenzip, dumpbin, checked_hashes):
+    base = f"PlainPDF-{version}-{architecture}"
     archive = directory / (base + ".zip")
     setup = directory / (base + "-setup.exe")
     for file in (archive, setup):
@@ -86,11 +87,21 @@ def static_checks(directory, architecture, work, sevenzip, dumpbin, checked_hash
     for item in expected:
         assert sha(zipper / item) == sha(installer / item), f"Package mismatch for {item}"
     assert machine(setup) == 0x014C
+    check_file_icon(zipper / "PlainPDF.exe")
+    check_file_icon(setup)
     return {
         "portable": str(archive), "installer": str(setup), "payload_files": len(expected),
         "binaries": payload, "installer_stub_machine": "0x14c",
+        "embedded_icons": "App and installer matched at 16, 32 and 256 px.",
         "sha256": {str(path.name): sha(path) for path in (archive, setup)},
     }
+
+
+def check_reader(executable, fixture):
+    with Reader(executable, fixture) as reader:
+        reader.wait_title(fixture.name)
+        wait_marker(reader.canvas, RED)
+        check_window_icon(reader.main)
 
 
 def live_checks(architecture, info, extracted, fixture):
@@ -110,15 +121,20 @@ def live_checks(architecture, info, extracted, fixture):
     try:
         assert registry_value(key, "InstallLocation") == str(install)
         assert shortcut.is_file()
+        environment = dict(os.environ, PLAINPDF_TEST_SHORTCUT=str(shortcut))
+        link = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+             "(New-Object -ComObject WScript.Shell).CreateShortcut($env:PLAINPDF_TEST_SHORTCUT).IconLocation"],
+            env=environment, check=True, capture_output=True, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW, timeout=15)
+        assert link.stdout.strip().casefold() == f"{install / 'PlainPDF.exe'},0".casefold()
         assert registry_value(OPEN_WITH, handler) == before_association
         assert registry_value(r"Software\Classes\.pdf", "") == before_default
         assert sha(install / "PlainPDF.exe") == info["binaries"]["PlainPDF.exe"]["sha256"]
         assert sha(install / "pdfium.dll") == info["binaries"]["pdfium.dll"]["sha256"]
 
-        for executable in (extracted / "PlainPDF.exe", install / "PlainPDF.exe"):
-            with Reader(executable, fixture) as reader:
-                reader.wait_title(fixture.name)
-                wait_marker(reader.canvas, RED)
+        check_reader(install / "PlainPDF.exe", fixture)
+        check_file_icon(uninstaller)
         userdata.write_text("Uninstall must preserve this unrelated file.\n", encoding="utf-8")
     finally:
         run_installer(uninstaller)
@@ -130,19 +146,24 @@ def live_checks(architecture, info, extracted, fixture):
                  and registry_value(key, "InstallLocation") is None, "uninstall completion")
     assert not shortcut.exists()
     assert not (install / "pdfium.dll").exists() and not (install / "licenses").exists()
+    assert registry_value(OPEN_WITH, handler) == before_association
+    assert registry_value(r"Software\Classes\.pdf", "") == before_default
     assert userdata.read_text(encoding="utf-8").startswith("Uninstall must preserve")
     shutil.move(userdata, extracted.parent / "preserved-user-file.txt")
-    return "Per-user install, portable and installed raster display, shortcut, no default association changes, and uninstall preserving unrelated data."
+    return "Per-user install, installed raster display, shortcut and uninstaller icons, and uninstall preserving unrelated data and associations."
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
+    parser.add_argument("--version", default="1.0.0-rc.2")
     parser.add_argument("--sevenzip", type=Path, required=True)
     parser.add_argument("--dumpbin", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--fixture", type=Path, default=Path("out/fixtures/single.pdf"))
     parser.add_argument("--static-only", action="store_true")
+    parser.add_argument("--skip-install", action="append", default=[], choices=("x86", "x64"),
+                        help="Keep an existing installation and exercise only the portable app.")
     args = parser.parse_args()
     directory = args.directory.resolve()
     args.report.parent.mkdir(parents=True, exist_ok=True)
@@ -155,11 +176,18 @@ def main():
         with preserve_recent():
             for architecture in ARCHITECTURES:
                 work = Path(temporary) / architecture
-                info = static_checks(directory, architecture, work, args.sevenzip, args.dumpbin, expected)
+                info = static_checks(directory, args.version, architecture, work,
+                                     args.sevenzip, args.dumpbin, expected)
+                info["runtime"] = "Not Tested"
                 if architecture in ("x86", "x64") and not args.static_only:
-                    info["runtime"] = live_checks(architecture, info, work / "zip", args.fixture.resolve())
-                else:
-                    info["runtime"] = "Not Tested"
+                    extracted = work / "zip"
+                    fixture = args.fixture.resolve()
+                    check_reader(extracted / "PlainPDF.exe", fixture)
+                    if architecture in args.skip_install:
+                        info["runtime"] = "Portable raster display and window icons. Installer execution skipped."
+                    else:
+                        installed = live_checks(architecture, info, extracted, fixture)
+                        info["runtime"] = f"Portable raster display and window icons. {installed}"
                 report[architecture] = info
                 print(f"{architecture}: {info['payload_files']} matching payload files. {info['runtime']}",
                       flush=True)

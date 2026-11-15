@@ -51,7 +51,11 @@ Release. The build script puts executables under
 Use a local copy of NSIS or acquire the pinned packaging compiler with
 `tools/Get-NSIS.ps1` and a local 7-Zip installation. Run `tools/Pack.ps1` to
 package the Release builds. The destination defaults to
-`../PlainPDF-Artifacts/1.0.0-rc`. Override it with `-Output`.
+`../PlainPDF-Artifacts/1.0.0-rc.2`. Pass `-Version` to set the version in the
+package filenames and default output path, or `-Output` to choose a directory.
+
+The application and setup share `src/PlainPDF.ico`. To regenerate it after
+editing the drawing, run `python .\tools\Make-Icon.py` with Pillow installed.
 
 ## Verify
 

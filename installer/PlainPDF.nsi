@@ -8,6 +8,8 @@ Unicode true
 !define PROG_ID "PlainPDF.PDF.${ARCH}"
 !define PROG_KEY "Software\Classes\${PROG_ID}"
 !define OPEN_WITH "Software\Classes\.pdf\OpenWithProgids"
+!define MUI_ICON "${__FILEDIR__}\..\src\PlainPDF.ico"
+!define MUI_UNICON "${MUI_ICON}"
 
 Name "${PRODUCT}"
 OutFile "${OUTPUT}"
@@ -58,7 +60,7 @@ Section "PlainPDF" Main
 	SetOutPath "$INSTDIR"
 	File /r "${STAGE}\*"
 	WriteUninstaller "$INSTDIR\Uninstall.exe"
-	CreateShortCut "$SMPROGRAMS\${PRODUCT}.lnk" "$INSTDIR\PlainPDF.exe"
+	CreateShortCut "$SMPROGRAMS\${PRODUCT}.lnk" "$INSTDIR\PlainPDF.exe" "" "$INSTDIR\PlainPDF.exe" 0
 	WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${PRODUCT}"
 	WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "1.0.0"
 	WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "Nolan White"

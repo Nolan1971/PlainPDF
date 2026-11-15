@@ -1,5 +1,22 @@
 # PlainPDF 1.0 verification
 
+## Release Candidate 2 icon update
+
+RC2 adds a nine-size icon to the app, installer and uninstaller. The Start
+menu shortcut points to the installed app icon. All six configurations
+rebuilt with zero warnings and zero errors. The package audit matched the
+embedded 16, 32 and 256 px icons in all three app and setup executables.
+The x86 and x64 portable readers rendered the fixture and used the new
+large and small window icons. The x86 installer also verified the installed
+reader, Start menu shortcut, uninstaller icon and uninstall. The existing
+x64 installation stayed in place. Native ARM64 installation and runtime
+remain Not Tested.
+
+The RC2 packages are in `D:\Projects\PlainPDF-Artifacts\1.0.0-rc.2` with
+`SHA256SUMS.txt`. The local audit is `out/test/1.0.0-rc.2/packages.json`.
+
+## Release Candidate 1 baseline
+
 A Pass means the behavior was observed in the specified run. The application
 binaries were rebuilt from a fresh public clone of commit
 `aca55764a44f876704fd866aa9cc6d0e480a7aa3`. The packaged files are local to
@@ -149,8 +166,11 @@ local 7-Zip and MSVC dumpbin executables.
 ```powershell
 $plainPdfSevenZip = 'D:\7-Zip\7z.exe'
 $plainPdfDumpbin = 'D:\Visual Studio\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\dumpbin.exe'
-python .\tests\packages.py ..\PlainPDF-Artifacts\1.0.0-rc --sevenzip $plainPdfSevenZip --dumpbin $plainPdfDumpbin --report .\out\test\review-packages.json
+python .\tests\packages.py ..\PlainPDF-Artifacts\1.0.0-rc.2 --sevenzip $plainPdfSevenZip --dumpbin $plainPdfDumpbin --report .\out\test\review-packages.json
 ```
+
+Use `--skip-install x64` or `--skip-install x86` to keep an existing
+installation and test that architecture's portable reader.
 
 MSVC x64 Release static analysis completed without source warnings. Separate
 x86 and x64 AddressSanitizer builds passed the focused invalid input,

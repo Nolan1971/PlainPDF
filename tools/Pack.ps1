@@ -2,14 +2,16 @@ param(
 	[ValidateSet('x86', 'x64', 'arm64')]
 	[string[]] $Architecture = @('x86', 'x64', 'arm64'),
 	[string] $Output,
-	[string] $MakeNsis
+	[string] $MakeNsis,
+	[ValidatePattern('^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?\z')]
+	[string] $Version = '1.0.0-rc.2'
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 if (!$Output)
 {
-	$Output = Join-Path (Split-Path -Parent $root) 'PlainPDF-Artifacts/1.0.0-rc'
+	$Output = Join-Path (Split-Path -Parent $root) "PlainPDF-Artifacts/$Version"
 }
 $outputPath = [IO.Path]::GetFullPath($Output)
 
@@ -74,7 +76,7 @@ foreach ($arch in $Architecture)
 	}
 	[IO.File]::WriteAllLines($removeFiles, $remove, [Text.UTF8Encoding]::new($false))
 
-	$name = "PlainPDF-1.0.0-rc-$arch"
+	$name = "PlainPDF-$Version-$arch"
 	$zip = Join-Path $outputPath "$name.zip"
 	$setup = Join-Path $outputPath "$name-setup.exe"
 	Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal -Force

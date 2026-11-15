@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="src\PlainPDF.rc" />
+    <Image Include="src\PlainPDF.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="RequirePdfium" BeforeTargets="ClCompile" Condition="!Exists('$(PdfiumDir)bin\pdfium.dll')">

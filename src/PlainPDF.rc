@@ -1,6 +1,8 @@
 #include <windows.h>
 #include "Resource.h"
 
+IDI_PLAINPDF ICON "src\\PlainPDF.ico"
+
 1 VERSIONINFO
 	FILEVERSION 1,0,0,0
 	PRODUCTVERSION 1,0,0,0

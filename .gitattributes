@@ -16,3 +16,4 @@ LICENSE text eol=lf
 *.ps1 text eol=lf
 *.nsi text eol=lf
 *.docx binary
+*.ico binary
