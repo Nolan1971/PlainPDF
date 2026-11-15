@@ -1,41 +1,30 @@
 # PlainPDF 1.0 development
 
-## Completed
+## Release candidate
 
-- Published the first source milestone on public main at
-  `2977babaac9aa723f7ec5b5fad48530abde3c92f`. Preserved the project
-  documents and recorded MIT attribution to Nolan White.
-- Built Debug and Release for all three architectures with MSVC v143 and
-  pinned PDFium 159.0.8152.0. Earlier package runs verified matching native
-  payloads and exercised x86 and x64 per-user installation and uninstall.
-- Both Release builds passed the full reader suite, including exact-target
-  Shell drop, Unicode copy, recent-list persistence and limit, form safety,
-  and an approved loopback link reaching the default browser.
-- Both observed busy work during replacement, Close, and shutdown. Tested
-  externally renamed PDF invalidation and Unicode command-line paths beyond
-  MAX_PATH. Local open and search established no reader-owned TCP/UDP
-  endpoints in the samples. A missing application-local PDFium produced a
-  controlled error even with a valid DLL in the working directory.
-- Completed both 20-cycle and 60-second performance runs. See
-  [acceptance evidence](docs/ACCEPTANCE.md) for timings and resource readings.
-- The hardening changes reject malformed HTTP targets, guard print output
-  against the open PDF, protect the print session through modal UI, and
-  restrict automated print runs to the virtual printer. MSVC x64 static
-  analysis now finishes without warnings.
+- The public repository is `Nolan1971/PlainPDF` on `main`. The application
+  binaries were built from `aca55764a44f876704fd866aa9cc6d0e480a7aa3` in a
+  clean checkout. The original specification and coding standard remain
+  authoritative. First-party code uses the owner's MIT attribution.
+- Debug and Release built for x86, x64, and ARM64 with zero warnings and
+  zero errors. The clean build acquired the pinned PDFium 159.0.8152.0
+  separately, using its recorded SHA-256 checks and publisher metadata.
+- Windows 10 x86 and x64 runs covered the reader's features, malformed
+  input, document replacement and shutdown during PDF work, bounded stress,
+  virtual printing and cancellation, and per-user install and uninstall.
+  The temporary Microsoft Print to PDF queue was removed after verification.
+- All three portable ZIPs and installers are in
+  `D:\Projects\PlainPDF-Artifacts\1.0.0-rc` with `SHA256SUMS.txt`.
+  [Acceptance results and review instructions](docs/ACCEPTANCE.md)
 
-## Remaining
+## Remaining verification and next action
 
-- Finish x86 print range, active cancellation and overwrite-guard
-  verification with exact virtual printer selection. x64 All, Current,
-  Range, and active cancellation succeeded. Record the overwrite regression
-  after the guarded attempt completes.
-- Finish the AddressSanitizer runtime check and record any tool limitation.
-- Build, package and verify the final source from a clean clone. Update the
-  acceptance record with final archive checksums and verification outcomes.
-- Remove the temporary Microsoft Print to PDF queue after printer testing.
-  No physical printing is part of this verification.
-
-## Limits
-
-- Native ARM64 installation and runtime require an ARM64 Windows system.
-- Local packages are unsigned. The owner controls stable release publication.
+- Native ARM64 installation and runtime are Not Tested. Use the ARM64
+  packages and the documented fixtures on an ARM64 Windows system when one
+  is available. Until then ARM64 runtime support is experimental.
+- The packages are unsigned. Virtual print evidence covers Microsoft Print
+  to PDF on the reference workstation. The acceptance record lists the
+  additional environment checks that remain unverified.
+- The owner can independently review the candidate using an extracted
+  x64 ZIP or the matching setup. Stable release publication follows owner
+  acceptance.

@@ -38,6 +38,7 @@ ole_init = api(ole32, "OleInitialize", wintypes.LONG, ctypes.c_void_p)
 ole_uninit = api(ole32, "OleUninitialize", None)
 ole_get_clipboard = api(ole32, "OleGetClipboard", wintypes.LONG, ctypes.POINTER(ctypes.c_void_p))
 ole_set_clipboard = api(ole32, "OleSetClipboard", wintypes.LONG, ctypes.c_void_p)
+get_system_color = api(user32, "GetSysColor", wintypes.DWORD, ctypes.c_int)
 
 
 @contextmanager
@@ -116,6 +117,21 @@ def wait_marker(hwnd, color, timeout=8):
         return marker(image, color)
 
     return wait_for(check, f"painted fixture marker {color}", timeout=timeout)
+
+
+def wait_highlight(hwnd, color):
+    # Search and selection are alpha-blended over white paper in the fixtures.
+    blended = tuple((255 * 167 + channel * 88) // 255 for channel in color)
+
+    def check():
+        image = capture(hwnd)
+        red, green, blue = ImageChops.difference(Image.new("RGB", image.size, blended), image).split()
+        difference = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+        if difference.point(lambda value: 255 if value <= 2 else 0).histogram()[255] >= 24:
+            return image
+        return None
+
+    return wait_for(check, f"painted highlight {color}")
 
 
 def point_at(reader, color, pdf_x, from_top):
@@ -253,6 +269,9 @@ class Tests:
             reader.query("NEEDLE")
             for page in (1, 2, 3, 1):
                 wait_for(lambda: reader.status() == f"Match on page {page}.", f"find page {page}")
+                wait_for(lambda: reader.page() == str(page), f"find scrolled to page {page}")
+                wait_marker(reader.canvas, (RED, GREEN, BLUE)[page - 1])
+                wait_highlight(reader.canvas, (248, 179, 17))
                 reader.command(1007)
             wait_for(lambda: reader.status() == "Match on page 2.", "forward match after wrap")
             reader.command(1008)
@@ -260,7 +279,7 @@ class Tests:
             capture(reader.canvas, self.evidence / "find-match.png")
             post(reader.control(1019), WM_KEYDOWN, 0x1B)
             wait_for(lambda: not is_visible(reader.control(1019)), "Escape closes Find")
-        return "Case-insensitive next/previous across pages, forward wrap and Escape."
+        return "Case-insensitive next/previous across pages, visible highlights, forward wrap and Escape."
 
     def search_scan(self):
         with Reader(self.exe, self.fixtures / "scan.pdf") as reader:
@@ -294,8 +313,14 @@ class Tests:
             value = wait_for(copied, "cross-page Unicode clipboard text")
             assert "café" in value and "€" in value
             assert value.index("needle page one") < value.index("needle page two")
-            capture(reader.canvas, self.evidence / "selection.png")
-        return "Drag selection crossed pages; CF_UNICODETEXT contained both pages, café, and euro sign in order."
+            highlight = get_system_color(13)  # COLOR_HIGHLIGHT, returned as a COLORREF.
+            color = tuple((highlight >> shift) & 255 for shift in (0, 8, 16))
+            wait_highlight(reader.canvas, color).save(self.evidence / "selection.png")
+            send(reader.canvas, WM_VSCROLL, 2)
+            wait_for(lambda: reader.page() == "1", "scroll back to first selected page")
+            wait_marker(reader.canvas, RED)
+            wait_highlight(reader.canvas, color).save(self.evidence / "selection-first-page.png")
+        return "Drag highlights appeared on both pages; CF_UNICODETEXT contained both pages, café, and euro sign in order."
 
     def password(self):
         with Reader(self.exe, self.fixtures / "locked.pdf") as reader:

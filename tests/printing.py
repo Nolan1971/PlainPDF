@@ -58,14 +58,14 @@ def select_virtual(dialog, mode):
         result = subprocess.run([str(SELECT_PRINTER), str(listing), action],
                                 capture_output=True, text=True, timeout=8,
                                 creationflags=subprocess.CREATE_NO_WINDOW)
-        assert result.returncode == 0, f"{result.stderr} Print was not invoked."
+        return result.returncode == 0
 
-    exact_selection("select")
+    wait_for(lambda: exact_selection("select"), "selection of Microsoft Print to PDF")
     wait_for(lambda: text(comment) == QUEUE_COMMENT, "verified test queue comment")
     assert send(radio, 0x00F0) == 1, "Page selection changed. Print was not invoked."
     submit = print_control(dialog, 1, "Button")
     assert text(submit).replace("&", "") == "Print"
-    exact_selection("verify")
+    assert exact_selection("verify"), "Virtual printer lost selection. Print was not invoked."
     post(dialog, WM_COMMAND, 1, submit)
 
 
@@ -99,9 +99,21 @@ def print_to(reader, mode, output, reject_source=False):
         overwrite = wait_for(overwrite_decision,
                              "Windows replacement question or reader source-file rejection")
         if overwrite is not True:
-            reader.respond(overwrite, 6)
-        wait_for(lambda: reader.status() == "Choose a print output file other than the original PDF.",
-                 "reader rejected the source as print output")
+            choices = [node for node in descendants(overwrite)
+                       if class_name(node) == "Button" and is_visible(node)
+                       and is_enabled(node) and text(node).replace("&", "") == "Yes"]
+            assert len(choices) == 1, "Cannot find an unambiguous confirmation for the test copy."
+            yes = choices[0]
+            set_foreground(overwrite)
+            post(yes, BM_CLICK)
+        try:
+            wait_for(lambda: reader.status() == "Choose a print output file other than the original PDF.",
+                     "reader rejected the source as print output")
+        except AssertionError as error:
+            choices = [(text(dialog), [(get_id(node), class_name(node), text(node))
+                                       for node in descendants(dialog) if is_visible(node)])
+                       for dialog in reader.dialogs()]
+            raise AssertionError(f"{error}. Status {reader.status()!r}, dialogs {choices}.") from error
     else:
         wait_for(lambda: "Printing" in reader.status() or "Print job submitted." == reader.status(),
                  "printing or submission in progress")
@@ -192,6 +204,7 @@ def main():
             assert reader.status() == "Print job submitted."
             report[mode] = verify_output(output, colors, form, options.poppler)
             print(mode, report[mode], flush=True)
+            (evidence / "printing.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
     report_file = options.fixtures.resolve() / "report.pdf"
     with preserve_recent(), Reader(options.exe, report_file) as reader:

@@ -53,17 +53,13 @@ namespace
 			child.lVal = match;
 			if (!verify)
 			{
-				status = accessible->accSelect(SELFLAG_TAKEFOCUS | SELFLAG_TAKESELECTION, child);
-				result = status == S_OK ? 0 : 5;
+				accessible->accSelect(SELFLAG_TAKEFOCUS | SELFLAG_TAKESELECTION, child);
 			}
-			else
-			{
-				VARIANT state = {};
-				status = accessible->get_accState(child, &state);
-				result = status == S_OK && state.vt == VT_I4 &&
-					(state.lVal & STATE_SYSTEM_SELECTED) != 0 ? 0 : 6;
-				VariantClear(&state);
-			}
+			VARIANT state = {};
+			status = accessible->get_accState(child, &state);
+			result = status == S_OK && state.vt == VT_I4 &&
+				(state.lVal & STATE_SYSTEM_SELECTED) != 0 ? 0 : 6;
+			VariantClear(&state);
 		}
 		if (result != 0)
 		{

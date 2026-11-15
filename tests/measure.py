@@ -150,6 +150,7 @@ def stress(exe, fixture, seconds, evidence):
         width, height = right - left, bottom - top
         latency = []
         busy_latency = []
+        resize_latency = []
         sequence = (1011, 1013, 1013, 1014, 1010, 1012)
         start = time.perf_counter()
         stop = start + seconds
@@ -159,7 +160,9 @@ def stress(exe, fixture, seconds, evidence):
         while time.perf_counter() < stop:
             if iteration % 8 == 0:
                 inset = (iteration % 24) * 5
+                tick = time.perf_counter()
                 assert window_position(reader.main, None, 0, 0, width - inset, height - inset, 0x16)
+                resize_latency.append(1000 * (time.perf_counter() - tick))
                 snapshots.append(counters(reader))
 
             busy = counters(reader)["Busy"] == 1
@@ -192,6 +195,10 @@ def stress(exe, fixture, seconds, evidence):
             "p95_latency_ms": statistics.quantiles(latency, n=20)[18], "max_latency_ms": max(latency),
             "worker_busy_max_latency_ms": max(busy_latency) if busy_latency else None,
             "over_100_ms": sum(value > 100 for value in latency),
+            "resize_calls": len(resize_latency),
+            "resize_median_ms": statistics.median(resize_latency),
+            "resize_max_ms": max(resize_latency),
+            "resize_over_100_ms": sum(value > 100 for value in resize_latency),
             "metrics": last, "snapshots": snapshots, "resources": resources(reader),
         }
 

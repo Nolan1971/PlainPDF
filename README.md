@@ -18,9 +18,10 @@ Windows Apps & features. Its optional Open with entry leaves the existing
 default PDF reader in place. For portable use, extract the complete ZIP into
 its own directory and run `PlainPDF.exe`. Keep `pdfium.dll` alongside it.
 
-x86 and x64 have a local Windows 10 test target. ARM64 support is experimental
-until tested on native ARM64 Windows. The ARM64 ZIP and installer contain the
-native ARM64 application and PDFium. NSIS uses an x86 installer stub.
+The x86 and x64 packages were tested on x64 Windows 10. ARM64 support is
+experimental pending native ARM64 verification. The ARM64 ZIP and installer
+contain the native ARM64 application and PDFium. NSIS uses an x86 installer
+stub.
 
 ## Use
 
@@ -55,9 +56,10 @@ package the Release builds. The destination defaults to
 ## Verify
 
 The `tests/` directory contains synthetic fixture generation and Windows UI
-tests. Install the Python packages in `tests/requirements.txt`, then run
+tests. Use Python 3 and run the following from the repository root.
 
 ```powershell
+python -m pip install -r .\tests\requirements.txt
 python .\tests\make_fixtures.py --heavy
 .\tests\Build-UiDrivers.ps1
 python .\tests\acceptance.py .\out\build\x64\Release\PlainPDF.exe --evidence .\out\test\review-x64
@@ -68,8 +70,9 @@ python .\tests\measure.py .\out\build\x64\Release\PlainPDF.exe --evidence .\out\
 Repeat with x86 and separate evidence directories on an x64 Windows test PC.
 The acceptance harness exercises the real Windows UI and opens a browser tab
 to a loopback server when testing link confirmation. The heavy fixture is
-about 122 MiB. See the [acceptance record](docs/ACCEPTANCE.md) for results
-and separate printer, package, and diagnostics procedures.
+about 122 MiB. The acceptance record covers the results and the separate
+printer, package, and diagnostics procedures.
+[PlainPDF acceptance record](https://github.com/Nolan1971/PlainPDF/blob/main/docs/ACCEPTANCE.md)
 
 Some unusual PDF text layers, form types, and very large files have limits.
 PlainPDF currently opens PDFs under 4 GiB with up to 250,000 pages. A failed
@@ -79,4 +82,4 @@ open preserves the current PDF.
 
 First-party code is MIT licensed. The separate PDFium license and bundled
 third-party notices accompany each package. See
-[PDFium provenance and updates](third_party/pdfium/README.md).
+[PDFium provenance and updates](https://github.com/Nolan1971/PlainPDF/blob/main/third_party/pdfium/README.md).
