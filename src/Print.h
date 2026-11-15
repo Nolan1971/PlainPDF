@@ -8,15 +8,16 @@ enum class PrintResult
 {
 	Success,
 	Cancelled,
-	Failed
+	Failed,
+	SourceFile
 };
 
 class PrintJob
 {
 public:
 	static std::unique_ptr<PrintJob> Start(HWND owner, PdfWorker& worker,
-		std::uint64_t document, const std::vector<PageSize>& pages, int current,
-		const std::wstring& name);
+		const std::uint64_t& document, const std::vector<PageSize>& pages, int current,
+		std::wstring source);
 	~PrintJob();
 
 	PrintJob(const PrintJob&) = delete;
@@ -28,7 +29,7 @@ public:
 
 private:
 	PrintJob(HWND owner, PdfWorker& worker, std::uint64_t document, HDC printer,
-		std::vector<PageSize> pages, int first, std::wstring name, std::wstring output);
+		std::vector<PageSize> pages, int first, std::wstring source, std::wstring output);
 
 	void Run() noexcept;
 	PrintResult Print();
@@ -41,7 +42,7 @@ private:
 	HDC _printer;
 	std::vector<PageSize> _pages;
 	int _first;
-	std::wstring _name;
+	std::wstring _source;
 	std::wstring _output;
 	std::atomic<bool> _cancelled = false;
 	std::atomic<bool> _finished = false;

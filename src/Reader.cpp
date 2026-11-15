@@ -644,6 +644,10 @@ void ReadWorkerResults(AppState& app)
 			{
 				InvalidateRaster(app, result.raster.area);
 				app.cache.Add(std::move(result.raster));
+				if (app.measure)
+				{
+					app.peakCacheBytes = std::max(app.peakCacheBytes, app.cache.Bytes());
+				}
 				ScheduleWork(app);
 				break;
 			}
@@ -735,6 +739,11 @@ void FinishPrint(AppState& app)
 				case PrintResult::Cancelled:
 				{
 					SetStatus(app, L"Printing cancelled.");
+					break;
+				}
+				case PrintResult::SourceFile:
+				{
+					SetStatus(app, L"Choose a print output file other than the original PDF.");
 					break;
 				}
 				default:

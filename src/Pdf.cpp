@@ -5,11 +5,13 @@
 #include <fpdf_progressive.h>
 #include <fpdf_text.h>
 #include <fpdfview.h>
+#include <urlmon.h>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <new>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
@@ -107,7 +109,17 @@ namespace
 				return {};
 			}
 		}
-		return std::wstring(uri.begin(), uri.end());
+		std::wstring address(uri.begin(), uri.end());
+		IUri* parsed = nullptr;
+		if (FAILED(CreateUri(address.c_str(), Uri_CREATE_NO_PRE_PROCESS_HTML_URI |
+			Uri_CREATE_NO_IE_SETTINGS, 0, &parsed)))
+		{
+			return {};
+		}
+		DWORD hostLength = 0;
+		HRESULT hostResult = parsed->GetPropertyLength(Uri_PROPERTY_HOST, &hostLength, 0);
+		parsed->Release();
+		return SUCCEEDED(hostResult) && hostLength != 0 ? std::move(address) : std::wstring{};
 	}
 
 	bool ToDevice(FPDF_PAGE page, double x, double y, POINT& position)
@@ -173,15 +185,21 @@ bool StartPdfium() noexcept
 	{
 		return false;
 	}
-	wchar_t path[32768] = {};
-	DWORD length = GetModuleFileNameW(nullptr, path, ARRAYSIZE(path));
-	if (length == 0 || length >= ARRAYSIZE(path))
+	constexpr DWORD pathCapacity = 32768;
+	std::unique_ptr<wchar_t[]> buffer(new (std::nothrow) wchar_t[pathCapacity]);
+	if (!buffer)
+	{
+		return false;
+	}
+	wchar_t* path = buffer.get();
+	DWORD length = GetModuleFileNameW(nullptr, path, pathCapacity);
+	if (length == 0 || length >= pathCapacity)
 	{
 		return false;
 	}
 	wchar_t* slash = wcsrchr(path, L'\\');
 	if (slash == nullptr ||
-		wcscpy_s(slash + 1, static_cast<size_t>(path + ARRAYSIZE(path) - slash - 1),
+		wcscpy_s(slash + 1, static_cast<size_t>(path + pathCapacity - slash - 1),
 			L"pdfium.dll") != 0)
 	{
 		return false;

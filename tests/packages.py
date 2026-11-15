@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import struct
 import subprocess
 import tempfile
@@ -98,7 +99,8 @@ def live_checks(architecture, info, extracted, fixture):
     menu = Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
     shortcut = menu / f"PlainPDF ({architecture}).lnk"
     handler = "PlainPDF.PDF." + architecture
-    assert registry_value(key, "InstallLocation") is None and not install.exists() and not shortcut.exists()
+    assert registry_value(key, "InstallLocation") is None and not shortcut.exists()
+    assert not install.exists() or (install.is_dir() and not any(install.iterdir()))
     before_association = registry_value(OPEN_WITH, handler)
     before_default = registry_value(r"Software\Classes\.pdf", "")
     run_installer(info["installer"])
@@ -121,12 +123,15 @@ def live_checks(architecture, info, extracted, fixture):
     finally:
         run_installer(uninstaller)
         wait_for(lambda: not (install / "PlainPDF.exe").exists()
+                 and not (install / "pdfium.dll").exists()
+                 and not (install / "licenses").exists()
+                 and not uninstaller.exists()
+                 and not shortcut.exists()
                  and registry_value(key, "InstallLocation") is None, "uninstall completion")
     assert not shortcut.exists()
     assert not (install / "pdfium.dll").exists() and not (install / "licenses").exists()
     assert userdata.read_text(encoding="utf-8").startswith("Uninstall must preserve")
-    userdata.unlink()
-    install.rmdir()
+    shutil.move(userdata, extracted.parent / "preserved-user-file.txt")
     return "Per-user install, portable and installed raster display, shortcut, no default association changes, and uninstall preserving unrelated data."
 
 

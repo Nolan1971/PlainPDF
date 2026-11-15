@@ -2,12 +2,14 @@
 
 #include "Resource.h"
 
+#include <ole2.h>
 #include <shellapi.h>
 #include <shobjidl.h>
 
 #include <algorithm>
 #include <cwchar>
 #include <memory>
+#include <utility>
 
 namespace
 {
@@ -50,6 +52,22 @@ namespace
 			DragFinish(drop);
 		}
 	};
+
+	std::wstring DropPath(HDROP drop)
+	{
+		UINT length = DragQueryFileW(drop, 0, nullptr, 0);
+		if (length == 0 || length >= 32760)
+		{
+			return {};
+		}
+		std::wstring path(static_cast<size_t>(length) + 1, L'\0');
+		if (DragQueryFileW(drop, 0, path.data(), length + 1) != length)
+		{
+			return {};
+		}
+		path.resize(length);
+		return path;
+	}
 
 	struct PasswordDialog
 	{
@@ -111,6 +129,160 @@ namespace
 	}
 }
 
+struct FileDropTarget final : IDropTarget
+{
+	HWND hwnd;
+	FileDropped handler;
+	void* context;
+	ULONG references = 1;
+	bool file = false;
+
+	FileDropTarget(HWND window, FileDropped receive, void* state)
+		: hwnd(window), handler(receive), context(state)
+	{
+	}
+
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** result) noexcept override
+	{
+		if (result == nullptr)
+		{
+			return E_POINTER;
+		}
+		*result = nullptr;
+		if (iid != IID_IUnknown && iid != IID_IDropTarget)
+		{
+			return E_NOINTERFACE;
+		}
+		*result = static_cast<IDropTarget*>(this);
+		AddRef();
+		return S_OK;
+	}
+
+	ULONG STDMETHODCALLTYPE AddRef() noexcept override
+	{
+		return ++references;
+	}
+
+	ULONG STDMETHODCALLTYPE Release() noexcept override
+	{
+		ULONG remaining = --references;
+		if (remaining == 0)
+		{
+			delete this;
+		}
+		return remaining;
+	}
+
+	static FORMATETC Format() noexcept
+	{
+		return { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+	}
+
+	HRESULT STDMETHODCALLTYPE DragEnter(IDataObject* data, DWORD, POINTL,
+		DWORD* effect) noexcept override
+	{
+		FORMATETC format = Format();
+		file = data != nullptr && data->QueryGetData(&format) == S_OK;
+		return ApplyEffect(effect);
+	}
+
+	HRESULT STDMETHODCALLTYPE DragOver(DWORD, POINTL, DWORD* effect) noexcept override
+	{
+		return ApplyEffect(effect);
+	}
+
+	HRESULT STDMETHODCALLTYPE DragLeave() noexcept override
+	{
+		file = false;
+		return S_OK;
+	}
+
+	HRESULT STDMETHODCALLTYPE ApplyEffect(DWORD* effect) const noexcept
+	{
+		if (effect == nullptr)
+		{
+			return E_POINTER;
+		}
+		*effect = file && context != nullptr && (*effect & DROPEFFECT_COPY) != 0
+			? DROPEFFECT_COPY : DROPEFFECT_NONE;
+		return S_OK;
+	}
+
+	HRESULT STDMETHODCALLTYPE Drop(IDataObject* data, DWORD, POINTL,
+		DWORD* effect) noexcept override
+	{
+		if (effect == nullptr)
+		{
+			return E_POINTER;
+		}
+		DWORD allowed = *effect;
+		*effect = DROPEFFECT_NONE;
+		file = false;
+		if (data == nullptr || context == nullptr || (allowed & DROPEFFECT_COPY) == 0)
+		{
+			return S_OK;
+		}
+
+		FORMATETC format = Format();
+		STGMEDIUM medium = {};
+		if (FAILED(data->GetData(&format, &medium)))
+		{
+			return S_OK;
+		}
+		std::wstring path;
+		try
+		{
+			switch (medium.tymed)
+			{
+				case TYMED_HGLOBAL:
+				{
+					if (medium.hGlobal != nullptr)
+					{
+						path = DropPath(static_cast<HDROP>(medium.hGlobal));
+					}
+					break;
+				}
+				default:
+					break;
+			}
+		}
+		catch (...)
+		{
+			ReleaseStgMedium(&medium);
+			return E_OUTOFMEMORY;
+		}
+		ReleaseStgMedium(&medium);
+		if (!path.empty() && context != nullptr)
+		{
+			handler(context, std::move(path));
+			*effect = DROPEFFECT_COPY;
+		}
+		return S_OK;
+	}
+};
+
+FileDropTarget* RegisterFileDrop(HWND hwnd, FileDropped handler, void* context)
+{
+	auto target = new FileDropTarget(hwnd, handler, context);
+	if (FAILED(RegisterDragDrop(hwnd, target)))
+	{
+		target->Release();
+		return nullptr;
+	}
+	return target;
+}
+
+void RevokeFileDrop(FileDropTarget*& target)
+{
+	if (target != nullptr)
+	{
+		target->context = nullptr;
+		RevokeDragDrop(target->hwnd);
+		target->Release();
+		target = nullptr;
+	}
+}
+
 std::wstring ChoosePdf(HWND owner)
 {
 	IFileOpenDialog* rawDialog = nullptr;
@@ -158,18 +330,7 @@ std::wstring ChoosePdf(HWND owner)
 std::wstring DroppedPdf(WPARAM wParam)
 {
 	DropHandle handle = { reinterpret_cast<HDROP>(wParam) };
-	UINT length = DragQueryFileW(handle.drop, 0, nullptr, 0);
-	if (length == 0 || length >= 32760)
-	{
-		return {};
-	}
-	std::wstring path(static_cast<size_t>(length) + 1, L'\0');
-	if (DragQueryFileW(handle.drop, 0, path.data(), length + 1) != length)
-	{
-		return {};
-	}
-	path.resize(length);
-	return path;
+	return DropPath(handle.drop);
 }
 
 std::wstring CommandLinePdf()

@@ -59,13 +59,21 @@ tests. Install the Python packages in `tests/requirements.txt`, then run
 
 ```powershell
 python .\tests\make_fixtures.py --heavy
-python .\tests\smoke.py .\out\build\x64\Release\PlainPDF.exe .\out\fixtures\mixed.pdf --capture .\out\test\mixed.png
+.\tests\Build-UiDrivers.ps1
+python .\tests\acceptance.py .\out\build\x64\Release\PlainPDF.exe --evidence .\out\test\review-x64
+python .\tests\lifetime.py .\out\build\x64\Release\PlainPDF.exe --evidence .\out\test\review-lifetime-x64
+python .\tests\measure.py .\out\build\x64\Release\PlainPDF.exe --evidence .\out\test\review-measure-x64
 ```
 
-The heavy fixture is about 122 MiB. Runtime and packaging evidence is recorded
-in the development progress and acceptance records. Some unusual PDF text
-layers, form types, and very large files have limits. PlainPDF currently opens
-PDFs up to 4 GiB and 250,000 pages. A failed open preserves the current PDF.
+Repeat with x86 and separate evidence directories on an x64 Windows test PC.
+The acceptance harness exercises the real Windows UI and opens a browser tab
+to a loopback server when testing link confirmation. The heavy fixture is
+about 122 MiB. See the [acceptance record](docs/ACCEPTANCE.md) for results
+and separate printer, package, and diagnostics procedures.
+
+Some unusual PDF text layers, form types, and very large files have limits.
+PlainPDF currently opens PDFs under 4 GiB with up to 250,000 pages. A failed
+open preserves the current PDF.
 
 ## Licenses
 

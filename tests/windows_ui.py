@@ -56,6 +56,9 @@ get_client = api(user32, "GetClientRect", wintypes.BOOL, wintypes.HWND, ctypes.P
 to_screen = api(user32, "ClientToScreen", wintypes.BOOL, wintypes.HWND, ctypes.POINTER(wintypes.POINT))
 set_foreground = api(user32, "SetForegroundWindow", wintypes.BOOL, wintypes.HWND)
 get_foreground = api(user32, "GetForegroundWindow", wintypes.HWND)
+set_position = api(user32, "SetWindowPos", wintypes.BOOL, wintypes.HWND, wintypes.HWND,
+                   ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT)
+window_at = api(user32, "WindowFromPoint", wintypes.HWND, wintypes.POINT)
 dpi_for_window = api(user32, "GetDpiForWindow", wintypes.UINT, wintypes.HWND)
 get_gui_resources = api(user32, "GetGuiResources", wintypes.DWORD, wintypes.HANDLE, wintypes.DWORD)
 open_process = api(kernel32, "OpenProcess", wintypes.HANDLE, wintypes.DWORD, wintypes.BOOL,
@@ -184,9 +187,10 @@ def capture(hwnd, destination=None):
 
 
 def capture_control(reader, hwnd, destination=None):
-    set_foreground(reader.main)
-    wait_for(lambda: get_foreground() == reader.main, "PlainPDF foreground window")
-    picture = ImageGrab.grab(bbox=rect(hwnd), all_screens=True)
+    left, top, right, bottom = rect(hwnd)
+    center = wintypes.POINT((left + right) // 2, (top + bottom) // 2)
+    wait_for(lambda: window_at(center) == hwnd, "unobscured PlainPDF control")
+    picture = ImageGrab.grab(bbox=(left, top, right, bottom), all_screens=True)
     if destination:
         picture.save(destination)
     return picture
@@ -202,9 +206,10 @@ def click(hwnd, x, y):
 
 
 class Reader:
-    def __init__(self, exe, argument=None):
+    def __init__(self, exe, argument=None, working_directory=None):
         self.executable = Path(exe).resolve()
         self.argument = argument
+        self.working_directory = working_directory or self.executable.parent
         self.process = None
         self.main = None
         self.canvas = None
@@ -215,12 +220,14 @@ class Reader:
         if self.argument is not None:
             arguments.append(str(self.argument))
         start = time.perf_counter()
-        self.process = subprocess.Popen(arguments, cwd=self.executable.parent)
+        self.process = subprocess.Popen(arguments, cwd=self.working_directory)
         try:
             self.main = wait_for(self.find_main, "PlainPDF main window")
             send(self.main, WM_NULL)
             self.start_seconds = time.perf_counter() - start
             self.canvas = wait_for(lambda: self.child("PlainPDFDocument"), "document canvas")
+            if not set_position(self.main, wintypes.HWND(-1), 0, 0, 0, 0, 0x13):
+                raise ctypes.WinError(ctypes.get_last_error())
             set_foreground(self.main)
             return self
         except BaseException:

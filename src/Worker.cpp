@@ -63,7 +63,8 @@ namespace
 	}
 }
 
-PdfWorker::PdfWorker(HWND hwnd) : _hwnd(hwnd), _thread(&PdfWorker::Run, this)
+PdfWorker::PdfWorker(HWND hwnd, bool measure)
+	: _hwnd(hwnd), _measure(measure), _thread(&PdfWorker::Run, this)
 {
 }
 
@@ -89,6 +90,52 @@ void PdfWorker::Stop()
 bool PdfWorker::Finished() const noexcept
 {
 	return _finished.load();
+}
+
+WorkerMeasurements PdfWorker::Measurements()
+{
+	std::lock_guard lock(_mutex);
+	WorkerMeasurements snapshot = _measurements;
+	snapshot.pending = static_cast<std::uint32_t>(_requests.size());
+	snapshot.busy = _working;
+	return snapshot;
+}
+
+void PdfWorker::QueueChanged()
+{
+	if (_measure)
+	{
+		_measurements.peakPending = std::max(_measurements.peakPending,
+			static_cast<std::uint32_t>(_requests.size()));
+	}
+}
+
+void PdfWorker::MeasureRaster(const Request& request)
+{
+	if (!_measure)
+	{
+		return;
+	}
+
+	std::lock_guard lock(_mutex);
+	if (request.kind == PdfJob::Render)
+	{
+		++_measurements.viewRenders;
+	}
+	else if (request.kind == PdfJob::Thumbnail)
+	{
+		++_measurements.thumbnails;
+	}
+	const RasterArea& area = request.raster;
+	if (area.width > 0 && area.height > 0)
+	{
+		std::uint64_t bytes = static_cast<std::uint64_t>(area.width) * area.height * 4;
+		if (bytes <= kMaxRasterBytes)
+		{
+			_measurements.largestRaster = std::max(_measurements.largestRaster,
+				static_cast<std::uint32_t>(bytes));
+		}
+	}
 }
 
 void PdfWorker::Remove(PdfJob kind)
@@ -145,6 +192,7 @@ bool PdfWorker::Submit(Request request)
 		return false;
 	}
 	_requests.push_back(std::move(request));
+	QueueChanged();
 	_workReady.notify_one();
 	return true;
 }
@@ -176,6 +224,15 @@ void PdfWorker::SetRasterQueue(std::uint64_t document, PdfJob kind,
 		{
 			continue;
 		}
+		bool completed = std::any_of(_results.begin(), _results.end(),
+			[kind, document, &area](const Result& result)
+			{
+				return result.kind == kind && result.document == document && result.raster.area == area;
+			});
+		if (completed)
+		{
+			continue;
+		}
 		Request request;
 		request.kind = kind;
 		request.document = document;
@@ -183,6 +240,7 @@ void PdfWorker::SetRasterQueue(std::uint64_t document, PdfJob kind,
 		_requests.push_back(std::move(request));
 		--limit;
 	}
+	QueueChanged();
 	_workReady.notify_one();
 }
 
@@ -203,6 +261,33 @@ bool PdfWorker::Cancelled(void* context) noexcept
 	return static_cast<PdfWorker*>(context)->_abort.load();
 }
 
+bool PdfWorker::TakeRequest(Request& request)
+{
+	std::unique_lock lock(_mutex);
+	_workReady.wait(lock, [this]
+	{
+		return _stopping || !_requests.empty();
+	});
+	if (_stopping)
+	{
+		return false;
+	}
+
+	auto item = std::min_element(_requests.begin(), _requests.end(),
+		[](const Request& a, const Request& b)
+		{
+			return Priority(a.kind) < Priority(b.kind);
+		});
+	request = std::move(*item);
+	_requests.erase(item);
+	_abort = false;
+	_working = true;
+	_active = request.kind;
+	_activeRaster = request.raster;
+	_activeDocument = request.document;
+	return true;
+}
+
 void PdfWorker::Run() noexcept
 {
 	bool initialized = StartPdfium();
@@ -216,28 +301,9 @@ void PdfWorker::Run() noexcept
 		while (initialized)
 		{
 			Request request;
+			if (!TakeRequest(request))
 			{
-				std::unique_lock lock(_mutex);
-				_workReady.wait(lock, [this]
-				{
-					return _stopping || !_requests.empty();
-				});
-				if (_stopping)
-				{
-					break;
-				}
-				auto item = std::min_element(_requests.begin(), _requests.end(),
-					[](const Request& a, const Request& b)
-					{
-						return Priority(a.kind) < Priority(b.kind);
-					});
-				request = std::move(*item);
-				_requests.erase(item);
-				_abort = false;
-				_working = true;
-				_active = request.kind;
-				_activeRaster = request.raster;
-				_activeDocument = request.document;
+				break;
 			}
 			try
 			{
@@ -260,16 +326,14 @@ void PdfWorker::Run() noexcept
 					Publish(std::move(failure));
 				}
 			}
-			{
-				std::lock_guard lock(_mutex);
-				_working = false;
-			}
+			_working = false;
 		}
 	}
 	catch (...)
 	{
 		// The UI observes an unexpected worker exit and keeps ownership of its state.
 	}
+	_working = false;
 	_candidate.reset();
 	_document.reset();
 	if (initialized)
@@ -304,6 +368,7 @@ void PdfWorker::Continue(Request& request)
 	if (!_abort && !_stopping && _requests.size() < kMaxPending)
 	{
 		_requests.push_back(std::move(request));
+		QueueChanged();
 	}
 }
 
@@ -385,11 +450,13 @@ void PdfWorker::Work(Request& request)
 		case PdfJob::Render:
 		case PdfJob::Thumbnail:
 		{
+			MeasureRaster(request);
 			result.raster = _document->Render(request.raster, false, { Cancelled, this });
 			break;
 		}
 		case PdfJob::Print:
 		{
+			MeasureRaster(request);
 			RenderCancellation cancel = { &_abort, &request.print->cancelled };
 			Raster raster = _document->Render(request.raster, true, { RenderCancelled, &cancel });
 			CompletePrint(request, std::move(raster));

@@ -8,7 +8,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import DictionaryObject, NameObject, TextStringObject
+from pypdf.annotations import Link
+from pypdf.generic import (ArrayObject, BooleanObject, DecodedStreamObject, DictionaryObject,
+                           NameObject, NumberObject, TextStringObject)
 from reportlab import rl_config
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pdfencrypt import StandardEncryption
@@ -62,6 +64,8 @@ def mixed(path):
     pdf.linkURL("http://127.0.0.1:49153/plainpdf-test", (60, 561, 220, 581), thickness=1)
     pdf.drawString(60, 530, "Disallowed file link")
     pdf.linkURL("file:///C:/nonexistent-plainpdf-test.txt", (60, 526, 220, 546), thickness=1)
+    pdf.drawString(60, 495, "Malformed HTTP link")
+    pdf.linkURL("https://:bad-port/invalid", (60, 491, 225, 511), thickness=1)
     pdf.showPage()
 
     pdf.setPageSize(landscape)
@@ -150,8 +154,20 @@ def hostile(source, path):
         NameObject("/S"): NameObject("/JavaScript"),
         NameObject("/JS"): TextStringObject("app.alert('DO NOT RUN PDF SCRIPT');"),
     })
+    writer.add_annotation(0, Link(rect=(60, 456, 225, 476), target_page_index=0))
+    broken = writer.pages[0]["/Annots"][-1].get_object()
+    broken[NameObject("/Dest")] = ArrayObject([NumberObject(9000), NameObject("/Fit")])
     writer.write(path)
     assert "/OpenAction" in PdfReader(path).root_object
+
+
+def dynamic_form(source, path):
+    writer = PdfWriter(clone_from=source)
+    stream = DecodedStreamObject()
+    stream.set_data(b"<xdp:xdp xmlns:xdp='http://ns.adobe.com/xdp/'/>")
+    writer.root_object["/AcroForm"][NameObject("/XFA")] = writer._add_object(stream)
+    writer.root_object[NameObject("/NeedsRendering")] = BooleanObject(True)
+    writer.write(path)
 
 
 def main():
@@ -168,6 +184,7 @@ def main():
     scanned(output / "scan.pdf")
     long_report(output / "report.pdf")
     hostile(output / "mixed.pdf", output / "scripted.pdf")
+    dynamic_form(output / "mixed.pdf", output / "dynamic-form.pdf")
     shutil.copyfile(output / "single.pdf", output / "café – 日本語.pdf")
     (output / "empty.pdf").write_bytes(b"")
     (output / "invalid.pdf").write_bytes(b"This is ordinary text.\r\n")

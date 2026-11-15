@@ -2,7 +2,7 @@
 
 #include "Resource.h"
 
-#include <objbase.h>
+#include <ole2.h>
 #include <commctrl.h>
 #include <shellapi.h>
 
@@ -146,8 +146,8 @@ namespace
 			return;
 		}
 		std::uint64_t document = app.document;
-		app.printJob = PrintJob::Start(app.hwnd, *app.worker, document, app.pages,
-			app.view.current, FileName(app.path));
+		app.printJob = PrintJob::Start(app.hwnd, *app.worker, app.document, app.pages,
+			app.view.current, app.path);
 		if (app.printJob != nullptr)
 		{
 			if (app.document != document || app.closing)
@@ -236,10 +236,7 @@ namespace
 				{
 					ToggleFind(app, true);
 				}
-				else
-				{
-					StartFind(app, id == ID_FIND_PREVIOUS);
-				}
+				StartFind(app, id == ID_FIND_PREVIOUS);
 				break;
 			}
 			case ID_QUERY:
@@ -371,10 +368,34 @@ namespace
 		}
 	}
 
+	void PublishMeasurements(AppState& app)
+	{
+		if (!app.measure || app.worker == nullptr)
+		{
+			return;
+		}
+
+		WorkerMeasurements worker = app.worker->Measurements();
+		auto set = [&app](const wchar_t* name, size_t value)
+		{
+			SetPropW(app.hwnd, name, reinterpret_cast<HANDLE>(value + 1));
+		};
+		set(L"PlainPDF.ViewRenders", worker.viewRenders);
+		set(L"PlainPDF.Thumbnails", worker.thumbnails);
+		set(L"PlainPDF.PeakPending", worker.peakPending);
+		set(L"PlainPDF.Pending", worker.pending);
+		set(L"PlainPDF.Busy", worker.busy);
+		set(L"PlainPDF.LargestRaster", worker.largestRaster);
+		set(L"PlainPDF.CacheBytes", app.cache.Bytes());
+		set(L"PlainPDF.PeakCacheBytes", app.peakCacheBytes);
+		set(L"PlainPDF.PaintCacheHits", app.paintCacheHits);
+	}
+
 	void Maintenance(AppState& app)
 	{
 		ReadWorkerResults(app);
 		FinishPrint(app);
+		PublishMeasurements(app);
 		if (app.closing)
 		{
 			if ((app.worker == nullptr || app.worker->Finished()) && app.printJob == nullptr)
@@ -394,6 +415,19 @@ namespace
 		}
 	}
 
+	void FileDrop(void* context, std::wstring&& path) noexcept
+	{
+		AppState& app = *static_cast<AppState*>(context);
+		try
+		{
+			StartOpen(app, std::move(path), false);
+		}
+		catch (...)
+		{
+			SetWindowTextW(app.controls.hStatus, L"PlainPDF could not open the dropped file.");
+		}
+	}
+
 	void InitializeWindow(AppState& app)
 	{
 		app.view.dpi = GetDpiForWindow(app.hwnd);
@@ -410,11 +444,16 @@ namespace
 		FillRecentMenu(GetMenu(app.hwnd), app.recent);
 		SetDocumentControls(app, false);
 		DragAcceptFiles(app.hwnd, TRUE);
+		DragAcceptFiles(app.hCanvas, TRUE);
+		app.dropTarget = RegisterFileDrop(app.hCanvas, FileDrop, &app);
 		if (SetTimer(app.hwnd, ID_MAINTENANCE_TIMER, 100, nullptr) == 0)
 		{
 			throw std::bad_alloc();
 		}
-		app.worker = std::make_unique<PdfWorker>(app.hwnd);
+		wchar_t measure[2] = {};
+		app.measure = GetEnvironmentVariableW(L"PLAINPDF_MEASURE", measure, ARRAYSIZE(measure)) == 1
+			&& measure[0] == L'1';
+		app.worker = std::make_unique<PdfWorker>(app.hwnd, app.measure);
 		ArrangeWindow(app);
 	}
 
@@ -557,6 +596,7 @@ namespace
 				}
 				case WM_DESTROY:
 				{
+					RevokeFileDrop(app->dropTarget);
 					if (app->worker != nullptr)
 					{
 						app->worker->Stop();
@@ -665,6 +705,7 @@ AppState::~AppState()
 		printJob.reset();
 	}
 	worker.reset();
+	RevokeFileDrop(dropTarget);
 	if (font != nullptr)
 	{
 		DeleteObject(font);
@@ -810,9 +851,9 @@ void ArrangeWindow(AppState& app)
 	ScheduleWork(app);
 }
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
+int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int nCmdShow)
 {
-	HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	HRESULT com = OleInitialize(nullptr);
 	if (FAILED(com))
 	{
 		MessageBoxW(nullptr, L"PlainPDF could not initialize Windows services.",
@@ -830,6 +871,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
 		MessageBoxW(nullptr, L"PlainPDF could not start or complete this operation.",
 			szAppName, MB_OK | MB_ICONERROR);
 	}
-	CoUninitialize();
+	OleUninitialize();
 	return result;
 }

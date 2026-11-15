@@ -7,7 +7,8 @@ if (!$vs)
 	throw 'The x64 MSVC tools are required.'
 }
 $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
-$test = Join-Path $root 'tests/DropPdf.cpp'
+$drop = Join-Path $root 'tests/DropPdf.cpp'
+$printer = Join-Path $root 'tests/SelectPrinter.cpp'
 $output = Join-Path $root 'out/test/tools'
 [void] [IO.Directory]::CreateDirectory($output)
 Push-Location -LiteralPath $output
@@ -18,13 +19,15 @@ try
 		'@echo off',
 		('call "' + $vcvars.Replace('%','%%') + '" >nul'),
 		'if errorlevel 1 exit /b 1',
-		('cl /nologo /W4 /EHsc /MT /std:c++20 /DUNICODE /D_UNICODE "' + $test.Replace('%','%%') + '" /Fe:DropPdf.exe /link shell32.lib ole32.lib user32.lib uuid.lib')
+		('cl /nologo /W4 /EHsc /MT /std:c++20 /DUNICODE /D_UNICODE "' + $drop.Replace('%','%%') + '" /Fe:DropPdf.exe /link shell32.lib ole32.lib user32.lib uuid.lib'),
+		'if errorlevel 1 exit /b 1',
+		('cl /nologo /W4 /EHsc /MT /std:c++20 /DUNICODE /D_UNICODE "' + $printer.Replace('%','%%') + '" /Fe:SelectPrinter.exe /link oleacc.lib oleaut32.lib ole32.lib user32.lib uuid.lib')
 	)
 	[IO.File]::WriteAllLines($batch, $lines, [Text.Encoding]::Default)
 	& $batch
 	if ($LASTEXITCODE -ne 0)
 	{
-		throw 'Could not build the test-only drag source.'
+		throw 'Could not build the native UI test drivers.'
 	}
 }
 finally

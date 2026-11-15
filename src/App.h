@@ -48,6 +48,7 @@ struct AppState
 	HWND hwnd = nullptr;
 	HWND hCanvas = nullptr;
 	HFONT font = nullptr;
+	FileDropTarget* dropTarget = nullptr;
 	Controls controls;
 	Sidebar sidebar;
 	View view;
@@ -71,6 +72,9 @@ struct AppState
 	std::uint64_t linkSerial = 0;
 	ULONGLONG lastFileCheck = 0;
 	UINT layoutDpi = 0;
+	std::uint32_t paintCacheHits = 0;
+	size_t peakCacheBytes = 0;
+	bool measure = false;
 	int wheel = 0;
 	int horizontalWheel = 0;
 	int zoomWheel = 0;

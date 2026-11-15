@@ -2,6 +2,11 @@
 
 #include "Pdf.h"
 
+struct FileDropTarget;
+using FileDropped = void (*)(void*, std::wstring&&) noexcept;
+
+FileDropTarget* RegisterFileDrop(HWND hwnd, FileDropped handler, void* context);
+void RevokeFileDrop(FileDropTarget*& target);
 std::wstring ChoosePdf(HWND owner);
 std::wstring DroppedPdf(WPARAM wParam);
 std::wstring CommandLinePdf();

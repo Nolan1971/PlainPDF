@@ -2,6 +2,7 @@
 
 import argparse
 import ctypes
+import hashlib
 import json
 import subprocess
 import time
@@ -9,15 +10,17 @@ import traceback
 import winreg
 from contextlib import contextmanager
 from ctypes import wintypes
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from threading import Thread
 
 from PIL import Image, ImageChops
 
 from windows_ui import (
-    WM_KEYDOWN, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_VSCROLL,
+    WM_CLOSE, WM_KEYDOWN, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_VSCROLL,
     Reader, api, capture, capture_control, class_name,
     click, descendants, get_control, get_id, is_enabled, is_visible, kernel32,
-    packed, post, rect, send, set_foreground, set_text, text, user32, wait_for,
+    packed, post, rect, send, set_foreground, set_text, text, user32, wait_for, window_at,
 )
 
 RED = (184, 41, 39)
@@ -141,11 +144,25 @@ def open_file_dialog(reader, path):
 def drop_file(reader, path):
     driver = Path(__file__).resolve().parents[1] / "out/test/tools/DropPdf.exe"
     if not driver.is_file():
-        raise AssertionError("Run tests/Build-DropTest.ps1 before the file drop case")
+        raise AssertionError("Run tests/Build-UiDrivers.ps1 before the file drop case")
     set_foreground(reader.main)
     left, top, right, bottom = rect(reader.canvas)
-    subprocess.run([str(driver), str(path), str((left + right) // 2), str((top + bottom) // 2)],
-                   check=True, timeout=6, creationflags=subprocess.CREATE_NO_WINDOW)
+    points = [wintypes.POINT(left + (right - left) * x // 4, top + (bottom - top) * y // 4)
+              for x, y in ((2, 2), (1, 1), (3, 1), (2, 3), (1, 3), (3, 3))]
+    target = wait_for(lambda: next((point for point in points if window_at(point) == reader.canvas),
+                                   None), "unobscured drop target")
+    result = subprocess.run(
+        [str(driver), str(path), str(target.x), str(target.y),
+         str(reader.canvas)], capture_output=True, text=True, timeout=6,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    if result.returncode:
+        raise AssertionError(f"Verified shell drop failed ({result.returncode}): {result.stderr}")
+    try:
+        reader.wait_title(path.name)
+    except AssertionError as error:
+        details = [(text(dialog), dialog_text(dialog)) for dialog in reader.dialogs()]
+        raise AssertionError(f"{error}. {reader.title()}, {reader.status()}, {details}") from error
 
 
 def dialog_text(dialog):
@@ -189,10 +206,9 @@ class Tests:
         return "Blank launch and close; native Open dialog rendered a Unicode filename and page 1."
 
     def entry_points(self):
-        with Reader(self.exe, self.fixtures / "single.pdf") as reader:
+        with Reader(self.exe, Path("single.pdf"), working_directory=self.fixtures) as reader:
             reader.wait_title("single.pdf")
             drop_file(reader, self.fixtures / "scan.pdf")
-            reader.wait_title("scan.pdf")
             wait_marker(reader.canvas, (118, 154, 163))
             reader.command(1002)
             reader.command(1101)
@@ -300,7 +316,10 @@ class Tests:
             reader.respond(cancel, 2)
             wait_for(lambda: not reader.dialogs(), "password prompt dismissed")
             assert reader.title() == "locked.pdf — PlainPDF"
-        return "Wrong password was rejected, correct password rendered the PDF, reopening prompted again, cancel preserved the live document."
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\PlainPDF") as key:
+            data = [winreg.EnumValue(key, i) for i in range(winreg.QueryInfoKey(key)[1])]
+            assert "plainpass" not in repr(data)
+        return "Wrong password was rejected, correct password rendered the PDF, reopening prompted again, cancellation preserved the view, and the test password was absent from app preferences."
 
     def invalid(self):
         with Reader(self.exe, self.fixtures / "single.pdf") as reader:
@@ -311,7 +330,7 @@ class Tests:
                                                 if "damaged" in dialog_text(d)
                                                 or "readable" in dialog_text(d)), None),
                                   f"error for {name}")
-                reader.respond(dialog, 1)
+                post(dialog, WM_CLOSE)
                 wait_for(lambda: not reader.dialogs(), "error dismissal")
                 assert reader.title() == "single.pdf — PlainPDF"
                 wait_marker(reader.canvas, RED)
@@ -350,7 +369,37 @@ class Tests:
             previews.save(self.evidence / "thumbnails.png")
             reader.command(1009)
             assert rect(reader.canvas) == original
-        return "Bookmark hierarchy expanded and navigated; thumbnail list navigated; hiding reclaimed document width."
+        with Reader(self.exe, self.fixtures / "single.pdf") as reader:
+            reader.wait_title("single.pdf")
+            reader.command(1009)
+            tree = reader.control(1025)
+            assert is_visible(tree) and send(tree, 0x1105) == 0
+        return "Bookmarks expanded and navigated; thumbnail raster painted; hiding reclaimed document width; a PDF without an outline had an empty pane."
+
+    def read_only_forms(self):
+        source = self.fixtures / "mixed.pdf"
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        with Reader(self.exe, source) as reader:
+            reader.wait_title(source.name)
+            reader.jump(3)
+            reader.command(1010)
+            area = wait_marker(reader.canvas, FORM)
+            before = capture(reader.canvas).crop(area).tobytes()
+            x = (area[0] + area[2]) // 2
+            y = (area[1] + area[3]) // 2
+            click(reader.canvas, x, y)
+            for ch in "typed text":
+                post(reader.canvas, 0x0102, ord(ch))
+            send(reader.canvas, 0)
+            assert capture(reader.canvas).crop(area).tobytes() == before
+            assert not reader.dialogs()
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
+
+        with Reader(self.exe, self.fixtures / "dynamic-form.pdf") as reader:
+            reader.wait_title("dynamic-form.pdf")
+            wait_marker(reader.canvas, RED)
+            assert "cannot fully display" in reader.status()
+        return "Field clicks and typing left the static appearance and source hash unchanged; XFA fixture retained ordinary content and showed a limitation notice."
 
     def internal_link(self):
         with Reader(self.exe, self.fixtures / "mixed.pdf") as reader:
@@ -360,26 +409,59 @@ class Tests:
             wait_for(lambda: reader.page() == "3", "internal link page jump")
             wait_marker(reader.canvas, BLUE)
             assert send(reader.control(1021), 0x147) == 1
-        return "Clicked a GoTo link, reached page 3, and applied its Fit destination."
-
-    def link_safety(self):
         with Reader(self.exe, self.fixtures / "scripted.pdf") as reader:
             reader.wait_title("scripted.pdf")
-            assert not reader.dialogs()
-            x, y = point_at(reader, RED, 130, 258)
-            click(reader.canvas, x, y)
+            click(reader.canvas, *point_at(reader, RED, 130, 328))
             time.sleep(0.2)
-            assert not reader.dialogs()
-            assert reader.page() == "1"
-            x, y = point_at(reader, RED, 130, 221)
-            click(reader.canvas, x, y)
-            dialog = wait_for(lambda: next((d for d in reader.dialogs()
-                                            if text(d) == "Open external link"), None),
-                              "external link confirmation")
-            assert "http://127.0.0.1:49153/plainpdf-test" in dialog_text(dialog)
-            reader.respond(dialog, 7)
-            wait_for(lambda: not reader.dialogs(), "confirmation decline")
-        return "OpenAction script and file URI remained inert; HTTP URI showed the exact target and supported decline."
+            assert reader.page() == "1" and not reader.dialogs()
+        return "A valid GoTo applied the page 3 Fit destination; an out-of-range destination had no effect."
+
+    def link_safety(self):
+        requests = []
+
+        class Loopback(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == "/plainpdf-test":
+                    requests.append(self.path)
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(b"PlainPDF loopback acceptance test.")
+
+            def log_message(self, *_):
+                pass
+
+        with HTTPServer(("127.0.0.1", 49153), Loopback) as server:
+            service = Thread(target=server.serve_forever, daemon=True)
+            service.start()
+            try:
+                with Reader(self.exe, self.fixtures / "scripted.pdf") as reader:
+                    reader.wait_title("scripted.pdf")
+                    assert not reader.dialogs()
+                    for position in (258, 293):
+                        click(reader.canvas, *point_at(reader, RED, 130, position))
+                        time.sleep(0.2)
+                        assert not reader.dialogs()
+                        assert reader.page() == "1"
+
+                    def confirmation():
+                        click(reader.canvas, *point_at(reader, RED, 130, 221))
+                        dialog = wait_for(lambda: next((d for d in reader.dialogs()
+                                                        if text(d) == "Open external link"), None),
+                                          "external link confirmation")
+                        assert "http://127.0.0.1:49153/plainpdf-test" in dialog_text(dialog)
+                        return dialog
+
+                    reader.respond(confirmation(), 7)
+                    wait_for(lambda: not reader.dialogs(), "confirmation decline")
+                    assert not requests
+                    reader.respond(confirmation(), 6)
+                    wait_for(lambda: requests, "browser reached the approved loopback URL", timeout=20)
+            finally:
+                server.shutdown()
+                service.join()
+        return "OpenAction, file URI, and malformed HTTP link were inert; the browser reached loopback only after confirmation."
 
     def recent(self):
         with Reader(self.exe, self.fixtures / "single.pdf") as reader:
@@ -404,7 +486,22 @@ class Tests:
             assert reader.title() == "PlainPDF"
             reader.command(1100)
             assert reader.title() == "PlainPDF"
-        return "Clear Recent Files removed rows; missing recent file prompted for removal; record no longer opened."
+        sample = (self.fixtures / "single.pdf").read_bytes()
+        paths = [self.evidence / f"recent-{i:02}.pdf" for i in range(11)]
+        for path in paths:
+            path.write_bytes(sample)
+        with Reader(self.exe) as reader:
+            for path in paths:
+                open_file_dialog(reader, path)
+                reader.wait_title(path.name)
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\PlainPDF") as key:
+            entries, kind = winreg.QueryValueEx(key, "RecentFiles")
+            assert kind == winreg.REG_MULTI_SZ
+            assert entries == [str(path) for path in reversed(paths[-10:])]
+        with Reader(self.exe) as reader:
+            reader.command(1100)
+            reader.wait_title(paths[-1].name)
+        return "Recent Files kept ten paths, newest first, across launches; clearing and missing-file removal both worked."
 
     def large_and_extreme(self):
         with Reader(self.exe, self.fixtures / "report.pdf") as reader:
@@ -447,7 +544,8 @@ def main():
         ("AT-14", tests.invalid),
         ("AT-25, AT-26, AT-27", tests.sidebar),
         ("AT-28", tests.internal_link),
-        ("AT-29 (confirmation), AT-31 (script)", tests.link_safety),
+        ("AT-30, AT-31 (forms)", tests.read_only_forms),
+        ("AT-29, AT-31 (script)", tests.link_safety),
         ("AT-32", tests.recent),
         ("AT-15, AT-16", tests.large_and_extreme),
     )

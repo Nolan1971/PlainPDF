@@ -1,11 +1,14 @@
 #include "Print.h"
 
+#include "Files.h"
+
 #include <shobjidl.h>
 #include <commdlg.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <utility>
 
 namespace
@@ -101,13 +104,14 @@ namespace
 	}
 }
 
-std::unique_ptr<PrintJob> PrintJob::Start(HWND owner, PdfWorker& worker, std::uint64_t document,
-	const std::vector<PageSize>& pages, int current, const std::wstring& name)
+std::unique_ptr<PrintJob> PrintJob::Start(HWND owner, PdfWorker& worker, const std::uint64_t& document,
+	const std::vector<PageSize>& pages, int current, std::wstring source)
 {
 	if (pages.empty())
 	{
 		return nullptr;
 	}
+	std::uint64_t selectedDocument = document;
 	PrintDialog dialog;
 	PRINTPAGERANGE range = {};
 	PRINTDLGEXW& data = dialog.data;
@@ -127,7 +131,7 @@ std::unique_ptr<PrintJob> PrintJob::Start(HWND owner, PdfWorker& worker, std::ui
 			L"PlainPDF", MB_OK | MB_ICONERROR);
 		return nullptr;
 	}
-	if (data.dwResultAction != PD_RESULT_PRINT || data.hDC == nullptr)
+	if (data.dwResultAction != PD_RESULT_PRINT || data.hDC == nullptr || document != selectedDocument)
 	{
 		return nullptr;
 	}
@@ -157,6 +161,14 @@ std::unique_ptr<PrintJob> PrintJob::Start(HWND owner, PdfWorker& worker, std::ui
 	}
 
 	bool pdf = IsPdfPrinter(data.hDevNames);
+	wchar_t virtualOnly[2] = {};
+	if (GetEnvironmentVariableW(L"PLAINPDF_TEST_VIRTUAL_PRINT", virtualOnly,
+		ARRAYSIZE(virtualOnly)) == 1 && virtualOnly[0] == L'1' && !pdf)
+	{
+		MessageBoxW(owner, L"The test requires Microsoft Print to PDF. No job was submitted.",
+			L"PlainPDF", MB_OK | MB_ICONERROR);
+		return nullptr;
+	}
 	std::wstring output;
 	if (pdf || (data.Flags & PD_PRINTTOFILE) != 0)
 	{
@@ -166,17 +178,21 @@ std::unique_ptr<PrintJob> PrintJob::Start(HWND owner, PdfWorker& worker, std::ui
 			return nullptr;
 		}
 	}
+	if (document != selectedDocument)
+	{
+		return nullptr;
+	}
 	std::vector<PageSize> selected(pages.begin() + first, pages.begin() + last + 1);
-	auto job = std::unique_ptr<PrintJob>(new PrintJob(owner, worker, document, data.hDC,
-		std::move(selected), first, name, std::move(output)));
+	auto job = std::unique_ptr<PrintJob>(new PrintJob(owner, worker, selectedDocument, data.hDC,
+		std::move(selected), first, std::move(source), std::move(output)));
 	data.hDC = nullptr;
 	return job;
 }
 
 PrintJob::PrintJob(HWND owner, PdfWorker& worker, std::uint64_t document, HDC printer,
-	std::vector<PageSize> pages, int first, std::wstring name, std::wstring output)
+	std::vector<PageSize> pages, int first, std::wstring source, std::wstring output)
 	: _owner(owner), _worker(worker), _document(document), _printer(printer),
-	  _pages(std::move(pages)), _first(first), _name(std::move(name)), _output(std::move(output)),
+	  _pages(std::move(pages)), _first(first), _source(std::move(source)), _output(std::move(output)),
 	  _thread(&PrintJob::Run, this)
 {
 }
@@ -226,9 +242,20 @@ PrintResult PrintJob::Print()
 		return _cancelled ? PrintResult::Cancelled : PrintResult::Failed;
 	}
 
+	if (!_output.empty())
+	{
+		// Detect aliases and hard links in addition to the ordinary same-path case.
+		std::error_code error;
+		if (CompareStringOrdinal(_source.c_str(), -1, _output.c_str(), -1, TRUE) == CSTR_EQUAL ||
+			std::filesystem::equivalent(_source, _output, error))
+		{
+			return PrintResult::SourceFile;
+		}
+	}
+	std::wstring name = FileName(_source);
 	DOCINFOW info = {};
 	info.cbSize = sizeof(info);
-	info.lpszDocName = _name.c_str();
+	info.lpszDocName = name.c_str();
 	info.lpszOutput = _output.empty() ? nullptr : _output.c_str();
 	if (StartDocW(_printer, &info) <= 0)
 	{

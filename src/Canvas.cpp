@@ -287,6 +287,10 @@ namespace
 	void PaintDocument(AppState& app, HDC hdc, RECT paint)
 	{
 		FillRect(hdc, &paint, GetSysColorBrush(COLOR_APPWORKSPACE));
+		if (app.view.frames.size() != app.pages.size())
+		{
+			return;
+		}
 		HBRUSH paper = reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH));
 		if (app.font != nullptr)
 		{
@@ -319,6 +323,10 @@ namespace
 				}
 				else
 				{
+					if (app.measure)
+					{
+						++app.paintCacheHits;
+					}
 					DrawRaster(hdc, *raster, x, y);
 				}
 			}
@@ -467,6 +475,11 @@ LRESULT CALLBACK CanvasProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 			case WM_SIZE:
 			{
 				ScheduleWork(*app);
+				return 0;
+			}
+			case WM_DROPFILES:
+			{
+				StartOpen(*app, DroppedPdf(wParam), false);
 				return 0;
 			}
 			case WM_VSCROLL:
